@@ -1,0 +1,9 @@
+COMO ABRIR O SITE CAOS
+
+1. Clique duas vezes em iniciar-site.bat.
+2. O navegador vai abrir em http://localhost:3000.
+3. Para entrar no admin, abra http://localhost:3000/#admin.
+4. Senha inicial do admin: caos123.
+
+Importante:
+Nao abra o index.html direto. O site precisa do servidor ligado para salvar nomes, criar eventos e acessar o admin.

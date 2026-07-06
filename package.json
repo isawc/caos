@@ -1,0 +1,13 @@
+{
+  "name": "caos-lista-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Site de lista para festas CAOS After Night.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test tests/*.test.js"
+  }
+}

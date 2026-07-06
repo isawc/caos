@@ -1,0 +1,13 @@
+{
+  "adminPassword": "caos123",
+  "activeEventId": "demo-event",
+  "events": [
+    {
+      "id": "demo-event",
+      "name": "CAOS - After Night",
+      "date": "2026-07-06",
+      "names": [],
+      "createdAt": "2026-07-06T20:52:51.583Z"
+    }
+  ]
+}

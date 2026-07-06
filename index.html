@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CAOS After Night - Lista</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#lista" aria-label="CAOS After Night">
+          <img src="logo.png" alt="CAOS After Night" />
+        </a>
+        <nav class="nav-tabs" aria-label="Navegação principal">
+          <a class="nav-link active" href="#lista" data-route="guest">Lista</a>
+          <a class="nav-link" href="#admin" data-route="admin">Admin</a>
+        </nav>
+      </header>
+
+      <main>
+        <section id="guest-view" class="view active" aria-labelledby="guest-title">
+          <div class="hero">
+            <div class="hero-copy">
+              <p class="eyebrow">CAOS After Night</p>
+              <h1 id="guest-title">Coloque seu nome na lista</h1>
+              <p class="event-line" id="guest-event-line">Carregando evento...</p>
+            </div>
+            <div class="hero-stats" aria-label="Resumo do evento ativo">
+              <span id="guest-count">0</span>
+              <small>nomes confirmados</small>
+            </div>
+          </div>
+
+          <form id="guest-form" class="panel form-panel">
+            <label for="guest-names">Nomes para a lista</label>
+            <textarea id="guest-names" rows="5" placeholder="Digite um nome por linha&#10;Ex: Ana Souza&#10;Bruno Lima" required></textarea>
+            <div class="form-row">
+              <button class="primary-btn" type="submit">Entrar na lista</button>
+              <button class="ghost-btn" type="button" id="clear-guest-form">Limpar</button>
+            </div>
+            <p class="hint">Você pode enviar mais de um nome de uma vez. Cada linha vira uma pessoa na lista.</p>
+            <p class="status-message" id="guest-status" role="status"></p>
+          </form>
+
+          <div class="panel quiet-panel" id="closed-message" hidden>
+            <strong>Nenhum evento aberto agora.</strong>
+            <span>Quando a próxima festa for ativada no admin, a lista aparece aqui automaticamente.</span>
+          </div>
+        </section>
+
+        <section id="admin-view" class="view" aria-labelledby="admin-title">
+          <div class="admin-grid">
+            <aside class="panel login-panel" id="login-panel">
+              <img src="logo.png" alt="" />
+              <h2>Admin CAOS</h2>
+              <p>Acesse para criar eventos, ativar a festa atual e ver os nomes da lista.</p>
+              <form id="login-form">
+                <label for="admin-password">Senha</label>
+                <input id="admin-password" type="password" autocomplete="current-password" placeholder="Digite a senha" required />
+                <button class="primary-btn" type="submit">Entrar</button>
+                <p class="status-message" id="login-status" role="status"></p>
+              </form>
+            </aside>
+
+            <div class="admin-content" id="admin-content" hidden>
+              <div class="admin-header">
+                <div>
+                  <p class="eyebrow">Painel de controle</p>
+                  <h1 id="admin-title">Eventos e lista</h1>
+                </div>
+                <button class="ghost-btn" type="button" id="logout-button">Sair</button>
+              </div>
+
+              <section class="panel create-panel" aria-labelledby="create-title">
+                <h2 id="create-title">Criar evento</h2>
+                <form id="event-form" class="event-form">
+                  <div>
+                    <label for="event-name">Nome da festa</label>
+                    <input id="event-name" type="text" placeholder="CAOS - Edição Julho" required />
+                  </div>
+                  <div>
+                    <label for="event-date">Data</label>
+                    <input id="event-date" type="date" required />
+                  </div>
+                  <button class="primary-btn" type="submit">Criar e ativar</button>
+                </form>
+              </section>
+
+              <section class="panel stats-panel" aria-labelledby="stats-title">
+                <div class="section-title">
+                  <h2 id="stats-title">Evento ativo</h2>
+                  <span class="pill" id="active-pill">Nenhum</span>
+                </div>
+                <div class="stat-grid">
+                  <div>
+                    <strong id="admin-count">0</strong>
+                    <span>nomes na lista</span>
+                  </div>
+                  <div>
+                    <strong id="admin-events-count">0</strong>
+                    <span>eventos criados</span>
+                  </div>
+                </div>
+              </section>
+
+              <section class="panel events-panel" aria-labelledby="events-title">
+                <div class="section-title">
+                  <h2 id="events-title">Eventos</h2>
+                  <button class="ghost-btn compact" type="button" id="seed-demo">Restaurar exemplo</button>
+                </div>
+                <div class="event-list" id="event-list"></div>
+              </section>
+
+              <section class="panel names-panel" aria-labelledby="names-title">
+                <div class="section-title">
+                  <h2 id="names-title">Nomes do evento ativo</h2>
+                  <div class="actions">
+                    <button class="ghost-btn compact" type="button" id="export-list">Exportar CSV</button>
+                    <button class="danger-btn compact" type="button" id="clear-active-list">Limpar lista</button>
+                  </div>
+                </div>
+                <div class="search-box">
+                  <label for="name-search">Buscar nome na portaria</label>
+                  <input id="name-search" type="search" placeholder="Digite o nome para confirmar" autocomplete="off" />
+                  <p class="hint" id="name-search-status">Digite para filtrar a lista.</p>
+                </div>
+                <div class="name-list" id="name-list"></div>
+              </section>
+
+              <section class="panel settings-panel" aria-labelledby="settings-title">
+                <h2 id="settings-title">Senha do admin</h2>
+                <form id="password-form" class="event-form">
+                  <div>
+                    <label for="new-password">Nova senha</label>
+                    <input id="new-password" type="password" minlength="4" placeholder="Mínimo 4 caracteres" required />
+                  </div>
+                  <button class="ghost-btn" type="submit">Atualizar senha</button>
+                </form>
+                <p class="status-message" id="settings-status" role="status"></p>
+              </section>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <template id="event-card-template">
+      <article class="event-card">
+        <div>
+          <h3></h3>
+          <p></p>
+        </div>
+        <div class="event-card-actions">
+          <button class="ghost-btn compact activate" type="button">Ativar</button>
+          <button class="danger-btn compact remove" type="button">Excluir</button>
+        </div>
+      </article>
+    </template>
+
+    <template id="name-row-template">
+      <div class="name-row">
+        <span></span>
+        <button class="icon-btn" type="button" aria-label="Remover nome">×</button>
+      </div>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
