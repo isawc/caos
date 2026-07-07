@@ -1,12 +1,20 @@
+try {
+  require("dotenv").config();
+} catch {
+  // dotenv é opcional; em produção (Render) as variáveis já vêm do painel.
+}
+
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { createClient } = require("@supabase/supabase-js");
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = __dirname;
-const DATA_FILE = process.env.CAOS_DATA_FILE || path.join(__dirname, "data.json");
 const sessions = new Set();
+
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 const defaultData = {
   adminPassword: "caos123",
@@ -22,16 +30,90 @@ const defaultData = {
   ]
 };
 
-function readData() {
-  if (!fs.existsSync(DATA_FILE)) {
-    writeData(defaultData);
-  }
+// Le tudo do Supabase e monta o mesmo formato que o app usava com data.json
+async function readData() {
+  const [{ data: settingsRow, error: settingsError }, { data: eventRows, error: eventsError }, { data: leadRows, error: leadsError }] =
+    await Promise.all([
+      supabase.from("settings").select("*").eq("id", 1).maybeSingle(),
+      supabase.from("events").select("*").order("created_at", { ascending: false }),
+      supabase.from("nomes").select("*").order("created_at", { ascending: true })
+    ]);
 
-  return JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+  if (settingsError) throw new Error(settingsError.message);
+  if (eventsError) throw new Error(eventsError.message);
+  if (leadsError) throw new Error(leadsError.message);
+
+  const events = (eventRows || []).map((event) => ({
+    id: event.id,
+    name: event.name,
+    date: event.date,
+    createdAt: event.created_at,
+    names: (leadRows || [])
+      .filter((lead) => lead.evento_id === event.id)
+      .map((lead) => ({ id: String(lead.id), name: lead.nome, createdAt: lead.created_at }))
+  }));
+
+  return {
+    adminPassword: settingsRow ? settingsRow.admin_password : "caos123",
+    activeEventId: settingsRow ? settingsRow.active_event_id : null,
+    events
+  };
 }
 
-function writeData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+async function setActiveEventId(eventId) {
+  const { error } = await supabase.from("settings").update({ active_event_id: eventId }).eq("id", 1);
+  if (error) throw new Error(error.message);
+}
+
+async function setAdminPassword(password) {
+  const { error } = await supabase.from("settings").update({ admin_password: password }).eq("id", 1);
+  if (error) throw new Error(error.message);
+}
+
+async function insertEvent(event) {
+  const { error } = await supabase.from("events").insert({
+    id: event.id,
+    name: event.name,
+    date: event.date,
+    created_at: event.createdAt
+  });
+  if (error) throw new Error(error.message);
+}
+
+async function deleteEvent(eventId) {
+  const { error: leadsErr } = await supabase.from("nomes").delete().eq("evento_id", eventId);
+  if (leadsErr) throw new Error(leadsErr.message);
+  const { error: eventErr } = await supabase.from("events").delete().eq("id", eventId);
+  if (eventErr) throw new Error(eventErr.message);
+}
+
+async function insertNames(eventId, names) {
+  const rows = names.map((name) => ({ nome: name, evento_id: eventId }));
+  const { error } = await supabase.from("nomes").insert(rows);
+  if (error) throw new Error(error.message);
+}
+
+async function deleteName(nameId) {
+  const { error } = await supabase.from("nomes").delete().eq("id", Number(nameId));
+  if (error) throw new Error(error.message);
+}
+
+async function clearNames(eventId) {
+  const { error } = await supabase.from("nomes").delete().eq("evento_id", eventId);
+  if (error) throw new Error(error.message);
+}
+
+async function resetDemo() {
+  const { error: leadsErr } = await supabase.from("nomes").delete().neq("id", -1);
+  if (leadsErr) throw new Error(leadsErr.message);
+  const { error: eventsErr } = await supabase.from("events").delete().neq("id", "");
+  if (eventsErr) throw new Error(eventsErr.message);
+
+  await insertEvent(defaultData.events[0]);
+  const { error: settingsErr } = await supabase
+    .from("settings")
+    .upsert({ id: 1, admin_password: defaultData.adminPassword, active_event_id: defaultData.activeEventId });
+  if (settingsErr) throw new Error(settingsErr.message);
 }
 
 function sendJson(res, status, payload) {
@@ -101,7 +183,7 @@ function csvEscape(value) {
 }
 
 async function handleApi(req, res, url) {
-  const data = readData();
+  const data = await readData();
 
   if (req.method === "GET" && url.pathname === "/api/public/active-event") {
     return sendJson(res, 200, { event: publicEvent(activeEvent(data)) });
@@ -115,10 +197,9 @@ async function handleApi(req, res, url) {
     const names = cleanNames(body.names);
     if (!names.length) return sendError(res, 400, "Envie pelo menos um nome.");
 
-    const now = new Date().toISOString();
-    event.names.push(...names.map((name) => ({ id: crypto.randomUUID(), name, createdAt: now })));
-    writeData(data);
-    return sendJson(res, 201, { added: names.length, event: publicEvent(event) });
+    await insertNames(event.id, names);
+    const updated = await readData();
+    return sendJson(res, 201, { added: names.length, event: publicEvent(activeEvent(updated)) });
   }
 
   if (req.method === "POST" && url.pathname === "/api/admin/login") {
@@ -151,12 +232,10 @@ async function handleApi(req, res, url) {
       id: crypto.randomUUID(),
       name,
       date,
-      names: [],
       createdAt: new Date().toISOString()
     };
-    data.events.push(event);
-    data.activeEventId = event.id;
-    writeData(data);
+    await insertEvent(event);
+    await setActiveEventId(event.id);
     return sendJson(res, 201, { event });
   }
 
@@ -164,18 +243,17 @@ async function handleApi(req, res, url) {
   if (req.method === "POST" && activateMatch) {
     const event = data.events.find((item) => item.id === activateMatch[1]);
     if (!event) return sendError(res, 404, "Evento não encontrado.");
-    data.activeEventId = event.id;
-    writeData(data);
+    await setActiveEventId(event.id);
     return sendJson(res, 200, { activeEventId: event.id });
   }
 
   const deleteEventMatch = url.pathname.match(/^\/api\/admin\/events\/([^/]+)$/);
   if (req.method === "DELETE" && deleteEventMatch) {
-    data.events = data.events.filter((event) => event.id !== deleteEventMatch[1]);
+    await deleteEvent(deleteEventMatch[1]);
     if (data.activeEventId === deleteEventMatch[1]) {
-      data.activeEventId = data.events[0]?.id || null;
+      const remaining = data.events.filter((event) => event.id !== deleteEventMatch[1]);
+      await setActiveEventId(remaining[0]?.id || null);
     }
-    writeData(data);
     return sendJson(res, 200, { ok: true });
   }
 
@@ -183,8 +261,7 @@ async function handleApi(req, res, url) {
   if (req.method === "DELETE" && clearNamesMatch) {
     const event = data.events.find((item) => item.id === clearNamesMatch[1]);
     if (!event) return sendError(res, 404, "Evento não encontrado.");
-    event.names = [];
-    writeData(data);
+    await clearNames(event.id);
     return sendJson(res, 200, { ok: true });
   }
 
@@ -192,8 +269,7 @@ async function handleApi(req, res, url) {
   if (req.method === "DELETE" && deleteNameMatch) {
     const event = data.events.find((item) => item.id === deleteNameMatch[1]);
     if (!event) return sendError(res, 404, "Evento não encontrado.");
-    event.names = event.names.filter((name) => name.id !== deleteNameMatch[2]);
-    writeData(data);
+    await deleteName(deleteNameMatch[2]);
     return sendJson(res, 200, { ok: true });
   }
 
@@ -218,13 +294,12 @@ async function handleApi(req, res, url) {
     const body = await getBody(req);
     const password = String(body.password || "").trim();
     if (password.length < 4) return sendError(res, 400, "A senha precisa ter pelo menos 4 caracteres.");
-    data.adminPassword = password;
-    writeData(data);
+    await setAdminPassword(password);
     return sendJson(res, 200, { ok: true });
   }
 
   if (req.method === "POST" && url.pathname === "/api/admin/reset-demo") {
-    writeData(defaultData);
+    await resetDemo();
     return sendJson(res, 200, { ok: true });
   }
 
@@ -275,16 +350,18 @@ function createServer() {
 }
 
 if (require.main === module) {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
+    console.error("Faltam as variaveis SUPABASE_URL e SUPABASE_KEY. Configure o arquivo .env ou as variaveis de ambiente do host.");
+  }
+
   const server = createServer();
   server.listen(PORT, () => {
     console.log(`CAOS rodando em http://localhost:${PORT}`);
-    console.log("Senha admin inicial: caos123");
   });
 }
 
 module.exports = {
   createServer,
   defaultData,
-  readData,
-  writeData
+  readData
 };
